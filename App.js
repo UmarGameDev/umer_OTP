@@ -36,11 +36,18 @@ export default function App() {
     []
   );
 
+  const resetWebVerifier = () => {
+    if (webVerifier.current) {
+      try { webVerifier.current.clear(); } catch (e) {}
+      webVerifier.current = null;
+    }
+  };
+
   const getVerifier = () => {
     if (Platform.OS !== "web") return modalRef.current;
-    if (!webVerifier.current) {
-      webVerifier.current = new RecaptchaVerifier(auth, "recaptcha-container", { size: "normal" });
-    }
+    // Always build a fresh verifier so it is bound to the currently mounted container.
+    resetWebVerifier();
+    webVerifier.current = new RecaptchaVerifier(auth, "recaptcha-container", { size: "normal" });
     return webVerifier.current;
   };
 
@@ -54,9 +61,7 @@ export default function App() {
       say("OTP sent. Check your phone.", "ok");
     } catch (e) {
       say(e.code || e.message, "err");
-      if (Platform.OS === "web" && webVerifier.current) {
-        webVerifier.current.render().then((id) => window.grecaptcha.reset(id));
-      }
+      if (Platform.OS === "web") resetWebVerifier();
     }
     setBusy(false);
   };
@@ -72,6 +77,7 @@ export default function App() {
 
   const logout = () => {
     signOut(auth);
+    if (Platform.OS === "web") resetWebVerifier();
     setPhone("");
     setOtp("");
     say("");
@@ -87,6 +93,9 @@ export default function App() {
         <View style={styles.card}>
           <Text style={styles.title}>{theme.title}</Text>
 
+          {/* Always mounted so the reCAPTCHA verifier never loses its element */}
+          {Platform.OS === "web" && <View nativeID="recaptcha-container" style={styles.captcha} />}
+
           {step === "phone" && (
             <View>
               <Text style={styles.label}>Phone number (with country code)</Text>
@@ -99,7 +108,6 @@ export default function App() {
                 keyboardType="phone-pad"
                 autoCapitalize="none"
               />
-              {Platform.OS === "web" && <View nativeID="recaptcha-container" style={styles.captcha} />}
               <TouchableOpacity style={[styles.button, busy && styles.disabled]} onPress={sendOtp} disabled={busy}>
                 <Text style={styles.buttonText}>Send OTP</Text>
               </TouchableOpacity>
